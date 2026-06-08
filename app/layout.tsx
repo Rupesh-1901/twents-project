@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Chat Example",
-  description: "A demonstration of chat functionality",
+  title: "Twents Dialect ChatBot",
+  description: "A Twents dialect chatbot with speech input and spoken replies.",
 };
 
 export default function RootLayout({
@@ -25,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="nl">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

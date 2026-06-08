@@ -29,21 +29,21 @@ export function GenerationStatus({ stage, className }: GenerationStatusProps) {
 
   return (
     <div className={cn("flex justify-start", className)}>
-      <div className="flex items-center gap-2 p-3 rounded-lg bg-muted max-w-[80%]">
+      <div className="flex max-w-[80%] items-center gap-2 rounded-lg border border-border/70 bg-card/88 px-4 py-3 shadow-sm shadow-foreground/5">
         {stage === "thinking" && (
           <>
-            <Brain size={16} className="text-purple-500 animate-pulse" />
+            <Brain size={16} className="animate-pulse text-primary" />
             <span className="text-sm text-muted-foreground">
-              Thinking{dots}
+              Ik denk{dots}
             </span>
           </>
         )}
 
         {stage === "searching" && (
           <>
-            <Globe size={16} className="text-blue-500 animate-spin" />
+            <Globe size={16} className="animate-spin text-primary" />
             <span className="text-sm text-muted-foreground">
-              Searching{dots}
+              Ik kiek{dots}
             </span>
           </>
         )}
@@ -52,10 +52,10 @@ export function GenerationStatus({ stage, className }: GenerationStatusProps) {
           <>
             <MessageSquare
               size={16}
-              className="text-green-500 animate-bounce"
+              className="animate-bounce text-primary"
             />
             <span className="text-sm text-muted-foreground">
-              Responding{dots}
+              Ik antwoorde{dots}
             </span>
           </>
         )}

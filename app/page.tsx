@@ -16,14 +16,29 @@ interface MessageData {
   id: string;
   content: string;
   sender: "user" | "assistant";
-  metadata?: {
-    model?: string;
-    responseTime?: number;
-    tokens?: number;
-  };
+  metadata?: Record<string, unknown>;
 }
 
+type GenerateStreamEvent =
+  | { type: "token"; token?: string }
+  | {
+      type: "done";
+      explanation?: string;
+      resources?: string[];
+      tokens?: Record<string, unknown>;
+      energy?: Record<string, unknown>;
+      model?: string;
+    }
+  | { type: "error"; error?: string };
+
 type GenerationStage = "idle" | "thinking" | "searching" | "responding";
+
+let messageIdSequence = 0;
+
+function createMessageId(prefix: "user" | "assistant") {
+  messageIdSequence += 1;
+  return `${prefix}-${Date.now()}-${messageIdSequence}`;
+}
 
 // Example sources for citations
 const sources = {
@@ -96,6 +111,7 @@ export default function ChatExample() {
     useState<GenerationStage>("idle");
   const [selectedModel] = useState("gpt-4");
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const generationAbortRef = useRef<AbortController | null>(null);
 
   // Define pattern handlers
   const patternHandlers = [
@@ -107,9 +123,10 @@ export default function ChatExample() {
     },
   ];
 
-  const handleSendMessage = (content: string) => {
+  const handleSendMessage = async (content: string) => {
+    const assistantMessageId = createMessageId("assistant");
     const userMessage: MessageData = {
-      id: Date.now().toString(),
+      id: createMessageId("user"),
       content,
       sender: "user",
     };
@@ -117,115 +134,161 @@ export default function ChatExample() {
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
     setGenerationStage("thinking");
+    // show progress stages while we prepare and call the server
+    setGenerationStage("searching");
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: assistantMessageId,
+        content: "",
+        sender: "assistant",
+        metadata: {
+          model: selectedModel,
+          responseTime: 0,
+        },
+      },
+    ]);
 
-    timeoutRef.current = setTimeout(() => {
-      setGenerationStage("searching");
+    const start = Date.now();
+    const abortController = new AbortController();
+    generationAbortRef.current = abortController;
 
-      timeoutRef.current = setTimeout(() => {
-        setGenerationStage("responding");
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: content, model: selectedModel }),
+        signal: abortController.signal,
+      });
 
-        timeoutRef.current = setTimeout(() => {
-          let responseContent = "";
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Error contacting model");
+      }
 
-          // Generate response with thinking tags for AI-related queries
-          if (
-            content.toLowerCase().includes("ai") ||
-            content.toLowerCase().includes("artificial intelligence") ||
-            content.toLowerCase().includes("machine learning")
-          ) {
-            responseContent = `<think>
-Let me break down this question about AI systematically:
+      if (!res.body) {
+        throw new Error("Model response stream was empty");
+      }
 
-1. **Understanding the query**: The user is asking about artificial intelligence and its applications
-2. **Key areas to cover**: 
-   - Definition and core concepts
-   - Machine learning as a subset
-   - Recent developments
-3. **Sources to reference**: I should cite relevant sources [1], [2], and [3]
-4. **Structure**: Start with a clear definition, then expand into ML and recent advances
-</think>
+      setGenerationStage("responding");
 
-Artificial Intelligence (AI) is a field of computer science focused on creating systems capable of performing tasks that typically require human intelligence [1]. These include learning, reasoning, problem-solving, perception, and language understanding.
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffered = "";
 
-Machine learning, a subset of AI, uses algorithms to enable systems to learn from data [2]. This approach allows computers to improve their performance on tasks through experience, without being explicitly programmed for every scenario.
+      const handleStreamEvent = (event: GenerateStreamEvent) => {
+        if (event.type === "token" && event.token) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? { ...msg, content: msg.content + event.token }
+                : msg
+            )
+          );
+          return;
+        }
 
-Recent advancements in deep learning have significantly improved AI capabilities in areas like:
-- **Image recognition**: Identifying objects, faces, and scenes in photos
-- **Natural language processing**: Understanding and generating human language
-- **Decision making**: Making complex decisions based on large datasets
+        if (event.type === "done") {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? {
+                    ...msg,
+                    content: msg.content || "(no response)",
+                    metadata: {
+                      model: event.model ?? selectedModel,
+                      responseTime: Number(
+                        ((Date.now() - start) / 1000).toFixed(2)
+                      ),
+                      tokens: event.tokens ?? {},
+                      energy: event.energy ?? {},
+                      explanation: event.explanation ?? "",
+                      resources: event.resources ?? [],
+                    },
+                  }
+                : msg
+            )
+          );
+          return;
+        }
 
-These developments [3] have enabled AI to be applied across industries, from healthcare diagnostics to autonomous vehicles.`;
-          } else if (
-            content.toLowerCase().includes("think") ||
-            content.toLowerCase().includes("reasoning")
-          ) {
-            responseContent = `<think>
-The user is asking about thinking or reasoning. Let me demonstrate the thinking process:
+        if (event.type === "error") {
+          throw new Error(event.error || "Error contacting model");
+        }
+      };
 
-**Step 1**: Identify what they want to know
-**Step 2**: Consider different aspects of reasoning
-**Step 3**: Provide a comprehensive answer
-**Step 4**: Make it clear and actionable
-</think>
+      while (true) {
+        const { value, done } = await reader.read();
+        buffered += decoder.decode(value ?? new Uint8Array(), { stream: !done });
 
-Great question! When AI systems use extended thinking or reasoning, they break down complex problems into smaller steps. This approach, similar to human problem-solving, involves:
+        const lines = buffered.split("\n");
+        buffered = lines.pop() ?? "";
 
-1. **Analyzing the problem** - Understanding what's being asked
-2. **Breaking it down** - Dividing complex questions into manageable parts
-3. **Evaluating options** - Considering different approaches
-4. **Synthesizing** - Combining insights into a coherent answer
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          handleStreamEvent(JSON.parse(line) as GenerateStreamEvent);
+        }
 
-This multi-step reasoning process often leads to more accurate and thoughtful responses, especially for complex or nuanced questions.`;
-          } else {
-            responseContent = `<think>
-Processing user query: "${content}"
-- Query type: General question
-- Approach: Provide helpful, concise response
-- Model: ${selectedModel}
-</think>
+        if (done) break;
+      }
 
-[${
-              selectedModel === "gpt-4"
-                ? "GPT-4"
-                : selectedModel === "gpt-3.5"
-                ? "GPT-3.5"
-                : selectedModel === "claude-3"
-                ? "Claude 3"
-                : selectedModel === "gemini-pro"
-                ? "Gemini Pro"
-                : "Llama 3"
-            }] I understand your question: "${content}"
-
-Let me help you with that. Could you provide more details about what specific aspect you'd like to know more about?`;
-          }
-
-          const assistantMessage: MessageData = {
-            id: (Date.now() + 1).toString(),
-            content: responseContent,
-            sender: "assistant",
-            metadata: {
-              model: selectedModel,
-              responseTime: 4.5,
-              tokens: 256,
-            },
-          };
-
-          setMessages((prev) => [...prev, assistantMessage]);
-          setIsLoading(false);
-          setGenerationStage("idle");
-          timeoutRef.current = null;
-        }, 1500);
-      }, 1500);
-    }, 1500);
+      if (buffered.trim()) {
+        handleStreamEvent(JSON.parse(buffered) as GenerateStreamEvent);
+      }
+    } catch (err: unknown) {
+      if (abortController.signal.aborted) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageId
+              ? {
+                  ...msg,
+                  content: msg.content || "Generation stopped by user",
+                  metadata: {
+                    ...msg.metadata,
+                    responseTime: Number(
+                      ((Date.now() - start) / 1000).toFixed(2)
+                    ),
+                  },
+                }
+              : msg
+          )
+        );
+      } else {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageId
+              ? {
+                  ...msg,
+                  content:
+                    err instanceof Error
+                      ? err.message
+                      : "Error contacting model",
+                  metadata: { model: selectedModel, responseTime: 0 },
+                }
+              : msg
+          )
+        );
+      }
+    } finally {
+      setIsLoading(false);
+      setGenerationStage("idle");
+      timeoutRef.current = null;
+      generationAbortRef.current = null;
+    }
   };
 
   const handleStopGeneration = () => {
+    if (generationAbortRef.current) {
+      generationAbortRef.current.abort();
+      return;
+    }
+
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
 
       const stoppedMessage: MessageData = {
-        id: Date.now().toString(),
+        id: createMessageId("assistant"),
         content: "Generation stopped by user",
         sender: "assistant",
         metadata: {
@@ -324,7 +387,7 @@ I've thought through this from a different angle and can provide additional insi
             }
 
             const regeneratedMessage: MessageData = {
-              id: Date.now().toString(),
+              id: createMessageId("assistant"),
               content: responseContent,
               sender: "assistant",
               metadata: {
@@ -354,13 +417,14 @@ I've thought through this from a different angle and can provide additional insi
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
+      generationAbortRef.current?.abort();
     };
   }, []);
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
+    <div className="flex min-h-screen flex-col bg-transparent text-foreground">
       <ChatHeader />
-      <div className="container mx-auto min-h-[80vh] flex flex-col flex-1">
+      <main className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-3 sm:px-6">
         <MessageList
           messages={messages}
           isLoading={isLoading}
@@ -375,7 +439,7 @@ I've thought through this from a different angle and can provide additional insi
           onStopGeneration={handleStopGeneration}
           isLoading={isLoading}
         />
-      </div>
+      </main>
     </div>
   );
 }

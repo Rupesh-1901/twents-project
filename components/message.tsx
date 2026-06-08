@@ -160,10 +160,10 @@ export function Message({
       <div className="relative">
         <div
           className={cn(
-            "max-w-[90vw] sm:max-w-[70vw]",
+            "max-w-[88vw] overflow-hidden sm:max-w-[68vw]",
             sender === "user"
-              ? "bg-primary text-primary-foreground rounded-lg"
-              : "",
+              ? "rounded-lg bg-primary text-primary-foreground shadow-md shadow-primary/15"
+              : "rounded-lg border border-border/70 bg-card/88 shadow-sm shadow-foreground/5",
             contentClassName
           )}
         >
@@ -203,13 +203,13 @@ export function Message({
               </div>
             </div>
           ) : (
-            <div className="p-3">
+            <div className="px-4 py-3 sm:px-5">
               <div
                 className={cn(
-                  "prose prose-sm max-w-none text-base",
+                  "prose prose-sm max-w-none text-[15px] leading-7 sm:text-base",
                   sender === "user"
                     ? "prose-invert prose-p:text-primary-foreground"
-                    : "prose-neutral dark:prose-invert"
+                    : "prose-neutral prose-p:my-0 dark:prose-invert"
                 )}
               >
                 <ReactMarkdown components={markdownComponents}>
@@ -254,14 +254,23 @@ export function Message({
             </div>
           )}
           {!isEditing && insideButtons.length > 0 && (
-            <div className="px-3 py-1 flex justify-start">
-              <div className="flex items-center gap-2">
+            <div
+              className={cn(
+                "flex justify-start border-t px-3 py-1.5",
+                sender === "user"
+                  ? "border-primary-foreground/15 bg-primary/5"
+                  : "border-border/55 bg-muted/35"
+              )}
+            >
+              <div className="flex items-center gap-1">
                 {insideButtons.map((button) => (
                   <button
                     key={button.id}
                     onClick={button.onClick}
                     className={cn(
-                      "text-muted-foreground hover:text-foreground transition-colors p-1",
+                      "rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground",
+                      sender === "user" &&
+                        "text-primary-foreground/75 hover:bg-primary-foreground/10 hover:text-primary-foreground",
                       button.className
                     )}
                     title={button.title}
@@ -280,7 +289,7 @@ export function Message({
                 key={button.id}
                 onClick={button.onClick}
                 className={cn(
-                  "text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted",
+                  "rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-card hover:text-foreground",
                   button.className
                 )}
                 title={button.title}

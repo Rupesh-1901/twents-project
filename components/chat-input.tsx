@@ -1,16 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, PlusCircle, Send, Square } from "lucide-react";
+import { Loader2, Mic, Send, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Toggle } from "@/components/ui/toggle";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 
 export interface ChatInputProps
   extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -37,15 +31,19 @@ export const ChatInput = React.forwardRef<HTMLTextAreaElement, ChatInputProps>(
       onStopGeneration,
       isLoading = false,
       placeholder = "Message...",
-      tools = [],
+      // tools = [],
       ...props
     },
     ref
   ) => {
     const [input, setInput] = React.useState("");
-    const [activeTools, setActiveTools] = React.useState<string[]>([]);
+    const [isRecording, setIsRecording] = React.useState(false);
+    const [isTranscribing, setIsTranscribing] = React.useState(false);
     const textareaRef = React.useRef<HTMLTextAreaElement>(null);
     const toolbarRef = React.useRef<HTMLDivElement>(null);
+    const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
+    const mediaStreamRef = React.useRef<MediaStream | null>(null);
+    const audioChunksRef = React.useRef<Blob[]>([]);
 
     // Handle merged refs
     const mergedRef = React.useMemo(
@@ -63,19 +61,137 @@ export const ChatInput = React.forwardRef<HTMLTextAreaElement, ChatInputProps>(
     const handleSendMessage = React.useCallback(
       (e: React.FormEvent) => {
         e.preventDefault();
-        if (!input.trim() || isLoading) return;
+        if (!input.trim() || isLoading || isTranscribing) return;
         onSend(input.trim());
         setInput("");
       },
-      [input, isLoading, onSend]
+      [input, isLoading, isTranscribing, onSend]
     );
 
-    // Toggle tool selection
-    const toggleTool = React.useCallback((id: string) => {
-      setActiveTools((prev) =>
-        prev.includes(id) ? prev.filter((tool) => tool !== id) : [...prev, id]
-      );
+    const stopMediaStream = React.useCallback(() => {
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
     }, []);
+
+    const transcribeAudio = React.useCallback(async (audioBlob: Blob) => {
+      setIsTranscribing(true);
+
+      try {
+        const formData = new FormData();
+        formData.append("audio", audioBlob, "twents-input.webm");
+
+        const res = await fetch("/api/stt", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(data?.error || "Unable to transcribe audio");
+        }
+
+        const data = (await res.json()) as { transcript?: string };
+        const transcript = data.transcript?.trim();
+
+        if (!transcript) {
+          toast.warning("No speech detected", {
+            description: "Deepgram did not return any Twents words.",
+          });
+          return;
+        }
+
+        setInput((current) =>
+          current.trim() ? `${current.trim()} ${transcript}` : transcript
+        );
+      } catch (err: unknown) {
+        toast.error("Unable to transcribe speech", {
+          description:
+            err instanceof Error
+              ? err.message
+              : "Deepgram speech-to-text failed.",
+        });
+      } finally {
+        setIsTranscribing(false);
+      }
+    }, []);
+
+    const stopRecording = React.useCallback(() => {
+      const recorder = mediaRecorderRef.current;
+
+      if (recorder && recorder.state !== "inactive") {
+        recorder.stop();
+      }
+    }, []);
+
+    const startRecording = React.useCallback(async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        toast.error("Microphone unavailable", {
+          description: "Your browser does not support audio recording.",
+        });
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+          },
+        });
+        const recorder = new MediaRecorder(stream);
+
+        audioChunksRef.current = [];
+        mediaStreamRef.current = stream;
+        mediaRecorderRef.current = recorder;
+
+        recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        recorder.onstop = () => {
+          setIsRecording(false);
+          stopMediaStream();
+
+          const audioBlob = new Blob(audioChunksRef.current, {
+            type: recorder.mimeType || "audio/webm",
+          });
+          audioChunksRef.current = [];
+
+          if (audioBlob.size > 0) {
+            void transcribeAudio(audioBlob);
+          }
+        };
+
+        recorder.start();
+        setIsRecording(true);
+      } catch (err: unknown) {
+        stopMediaStream();
+        toast.error("Unable to access microphone", {
+          description:
+            err instanceof Error
+              ? err.message
+              : "Microphone permission was denied or unavailable.",
+        });
+      }
+    }, [stopMediaStream, transcribeAudio]);
+
+    const handleVoiceInput = React.useCallback(() => {
+      if (isRecording) {
+        stopRecording();
+        return;
+      }
+
+      void startRecording();
+    }, [isRecording, startRecording, stopRecording]);
+
+    React.useEffect(() => {
+      return () => {
+        stopRecording();
+        stopMediaStream();
+      };
+    }, [stopMediaStream, stopRecording]);
 
     // Adjust textarea padding based on toolbar height
     React.useEffect(() => {
@@ -94,7 +210,7 @@ export const ChatInput = React.forwardRef<HTMLTextAreaElement, ChatInputProps>(
       if (toolbarRef.current) resizeObserver.observe(toolbarRef.current);
 
       return () => resizeObserver.disconnect();
-    }, [activeTools.length]);
+    }, []);
 
     // Auto-resize textarea
     React.useEffect(() => {
@@ -110,13 +226,19 @@ export const ChatInput = React.forwardRef<HTMLTextAreaElement, ChatInputProps>(
     }, [input]);
 
     return (
-      <div className={cn("relative w-full max-w-[800px] mx-auto", className)}>
+      <div className={cn("relative mx-auto w-full max-w-4xl", className)}>
         <form onSubmit={handleSendMessage} className="relative">
-          <div className="relative bg-background border rounded-lg overflow-hidden shadow-sm">
+          <div
+            className={cn(
+              "relative overflow-hidden rounded-lg border bg-card/95 shadow-lg shadow-foreground/5 transition-all",
+              "focus-within:border-primary/45 focus-within:shadow-primary/10",
+              isRecording && "border-destructive/50 shadow-destructive/10"
+            )}
+          >
             <textarea
               ref={mergedRef}
               placeholder={placeholder}
-              className="w-full border-none pt-3 !pb-0 px-4 placeholder:text-muted-foreground focus-visible:ring-0 focus:outline-none resize-none mb-12"
+              className="mb-12 min-h-24 w-full resize-none border-none bg-transparent px-4 pt-4 text-[15px] leading-7 placeholder:text-muted-foreground/80 focus:outline-none focus-visible:ring-0 sm:px-5"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -126,16 +248,16 @@ export const ChatInput = React.forwardRef<HTMLTextAreaElement, ChatInputProps>(
                 }
               }}
               rows={1}
-              disabled={isLoading}
+              disabled={isLoading || isTranscribing}
               {...props}
             />
 
             <div
               ref={toolbarRef}
-              className="absolute bottom-0 left-0 right-0 flex border-none items-center px-2 py-1 pb-2 border-t"
+              className="absolute bottom-0 left-0 right-0 flex items-center border-t border-border/55 bg-card/85 px-3 py-2"
             >
               <div className="flex flex-wrap gap-1">
-                <Button
+                {/* <Button
                   type="button"
                   size="sm"
                   variant="ghost"
@@ -143,9 +265,9 @@ export const ChatInput = React.forwardRef<HTMLTextAreaElement, ChatInputProps>(
                 >
                   <PlusCircle size={14} />
                   <span className="sr-only">Add attachment</span>
-                </Button>
+                </Button> */}
 
-                {tools.map((tool) => (
+                {/* {tools.map((tool) => (
                   <React.Fragment key={tool.id}>
                     {tool.type === "dropdown" ? (
                       <DropdownMenu>
@@ -201,17 +323,55 @@ export const ChatInput = React.forwardRef<HTMLTextAreaElement, ChatInputProps>(
                       </Toggle>
                     )}
                   </React.Fragment>
-                ))}
+                ))} */}
               </div>
 
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-1">
+                {isRecording && (
+                  <span className="mr-2 hidden items-center gap-2 text-xs font-medium text-destructive sm:flex">
+                    <span className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
+                    Opname
+                  </span>
+                )}
+                <Button
+                  type="button"
+                  onClick={handleVoiceInput}
+                  size="sm"
+                  variant="ghost"
+                  disabled={isLoading || isTranscribing}
+                  className={cn(
+                    "h-8 w-8 rounded-md flex-shrink-0 p-0",
+                    isRecording
+                      ? "text-destructive hover:text-destructive hover:bg-destructive/10"
+                      : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+                  )}
+                  title={
+                    isRecording
+                      ? "Stop Twents voice input"
+                      : "Start Twents voice input"
+                  }
+                >
+                  {isTranscribing ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : isRecording ? (
+                    <Square size={13} className="fill-destructive" />
+                  ) : (
+                    <Mic size={14} />
+                  )}
+                  <span className="sr-only">
+                    {isRecording
+                      ? "Stop Twents voice input"
+                      : "Start Twents voice input"}
+                  </span>
+                </Button>
+
                 {isLoading ? (
                   <Button
                     type="button"
                     onClick={onStopGeneration}
                     size="sm"
                     variant="ghost"
-                    className="rounded-full text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0 p-0 h-7 w-7"
+                    className="h-8 w-8 flex-shrink-0 rounded-md p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   >
                     <Square size={14} className="fill-destructive" />
                     <span className="sr-only">Stop generation</span>
@@ -221,11 +381,11 @@ export const ChatInput = React.forwardRef<HTMLTextAreaElement, ChatInputProps>(
                     type="submit"
                     size="sm"
                     variant="ghost"
-                    disabled={!input.trim()}
+                    disabled={!input.trim() || isTranscribing}
                     className={cn(
-                      "h-7 w-7 rounded-full flex-shrink-0 p-0",
+                      "h-8 w-8 rounded-md flex-shrink-0 p-0",
                       input.trim()
-                        ? "text-primary hover:text-primary"
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
                         : "text-muted-foreground"
                     )}
                   >
