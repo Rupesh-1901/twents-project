@@ -68,8 +68,17 @@ export function ChatHeader() {
                   and creating.
                 </p>
                 <p className="text-muted-foreground">
-                  This prototype is currently under construction by Rupesh
-                  Mishra, Interaction Technology masters student at the
+                  This prototype is currently under construction by  
+                  {" "}
+                  <a
+                    href="https://www.linkedin.com/in/rupesh-mishra-5b2b701b1/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-primary hover:underline"
+                  >
+                     Rupesh
+                  </a>{" "}, 
+                  masters student at the
                   University of Twente. Set up on a shoestring, it draws on data
                   already present in the Mistral model from Twents text
                   available on the internet.
