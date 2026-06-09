@@ -278,7 +278,7 @@ export function MessageList({
               T
             </div>
             <h2 className="text-lg font-semibold tracking-tight">
-              Moi. Waar wo&apos;w oaver proaten?
+              Moi. Woar wo&apos;w oaver proaten?
             </h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               &apos;t Gesprek steet kloar.

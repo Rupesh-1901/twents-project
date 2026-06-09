@@ -46,7 +46,7 @@ export function ChatFooter({
         onSend={onSendMessage}
         onStopGeneration={onStopGeneration}
         isLoading={isLoading}
-        placeholder="Wat hef ie op 't hart?"
+        placeholder="Wat hef ie op 't hatte?"
         // tools={[
         //   {
         //     id: "search",
