@@ -324,6 +324,7 @@ export default function ChatExample() {
   const [selectedModel] = useState("");
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const generationAbortRef = useRef<AbortController | null>(null);
+  const lastAssistantResponseAtRef = useRef<number | null>(null);
 
   // Define pattern handlers
   const patternHandlers = [
@@ -337,10 +338,21 @@ export default function ChatExample() {
 
   const handleSendMessage = async (content: string) => {
     const assistantMessageId = createMessageId("assistant");
+    const sentAt = Date.now();
+    const humanResponseTime =
+      lastAssistantResponseAtRef.current === null
+        ? null
+        : Number(
+            ((sentAt - lastAssistantResponseAtRef.current) / 1000).toFixed(2)
+          );
     const userMessage: MessageData = {
       id: createMessageId("user"),
       content,
       sender: "user",
+      metadata: {
+        model: "homosapien",
+        responseTime: humanResponseTime,
+      },
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -361,7 +373,7 @@ export default function ChatExample() {
       },
     ]);
 
-    const start = Date.now();
+    const start = sentAt;
     const abortController = new AbortController();
     generationAbortRef.current = abortController;
 
@@ -401,6 +413,7 @@ export default function ChatExample() {
         }
 
         if (event.type === "done") {
+          lastAssistantResponseAtRef.current = Date.now();
           setMessages((prev) =>
             prev.map((msg) => {
               if (msg.id !== assistantMessageId) return msg;
@@ -456,6 +469,7 @@ export default function ChatExample() {
       }
     } catch (err: unknown) {
       if (abortController.signal.aborted) {
+        lastAssistantResponseAtRef.current = Date.now();
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === assistantMessageId
@@ -517,6 +531,7 @@ export default function ChatExample() {
         },
       };
 
+      lastAssistantResponseAtRef.current = Date.now();
       setMessages((prev) => [...prev, stoppedMessage]);
       setIsLoading(false);
       setGenerationStage("idle");
@@ -632,6 +647,7 @@ I've thought through this from a different angle and can provide additional insi
               },
             };
 
+            lastAssistantResponseAtRef.current = Date.now();
             setMessages((prev) => [...prev, regeneratedMessage]);
             setIsLoading(false);
             setGenerationStage("idle");

@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Twents Dialect ChatBot",
+  title: "Twents Conversation Machine",
   description: "A Twents dialect chatbot with speech input and spoken replies.",
 };
 

@@ -65,12 +65,14 @@ function MessageInfoPanel({ message }: { message: MessageData }) {
   const rows = [
     {
       label: "Model",
-      value: isHuman ? "human" : metadata.model,
+      value: isHuman ? "homosapien" : metadata.model,
     },
     {
       label: "Response Time",
       value: isHuman
-        ? "unknown"
+        ? metadata.responseTime
+          ? `${String(metadata.responseTime)}s`
+          : "unknown"
         : metadata.responseTime
         ? `${String(metadata.responseTime)}s`
         : "unknown",
@@ -80,7 +82,7 @@ function MessageInfoPanel({ message }: { message: MessageData }) {
       value: isHuman ? "unknown" : metadata.tokens,
     },
     {
-      label: "Energy So Far",
+      label: "Energy consumed so far",
       value: isHuman
         ? "unknown"
         : energy
@@ -274,9 +276,9 @@ export function MessageList({
       {messages.length === 0 ? (
         <div className="flex min-h-[52vh] items-center justify-center">
           <div className="max-w-xl rounded-lg border border-border/70 bg-card/82 px-6 py-5 text-center shadow-sm shadow-foreground/5">
-            <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-md bg-primary text-lg font-black text-primary-foreground">
+            {/* <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-md bg-primary text-lg font-black text-primary-foreground">
               T
-            </div>
+            </div> */}
             <h2 className="text-lg font-semibold tracking-tight">
               Moi. Woar wo&apos;w oaver proaten?
             </h2>
