@@ -62,7 +62,7 @@ function calculateEnergyUsage(inputTokens: number, outputTokens: number) {
     joules: round(joules, 2),
     wattHours: round(wattHours, 4),
     ledBulbMinutes: round(ledBulbMinutes, 2),
-    analogy: `This request used enough energy to power a ${LED_BULB_WATTS}W household smart LED lightbulb for ${ledDuration}.`,
+    analogy: `This response used enough energy to power a ${LED_BULB_WATTS}W household smart LED lightbulb for ${ledDuration}.`,
   };
 }
 

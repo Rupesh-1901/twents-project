@@ -160,13 +160,19 @@ export function Message({
       <div className="relative">
         <div
           className={cn(
-            "max-w-[88vw] overflow-hidden sm:max-w-[68vw]",
+            "max-w-full overflow-hidden sm:max-w-2xl",
             sender === "user"
               ? "rounded-lg bg-primary text-primary-foreground shadow-md shadow-primary/15"
-              : "rounded-lg border border-border/70 bg-card/88 shadow-sm shadow-foreground/5",
+              : "rounded-lg border border-primary/25 bg-background shadow-lg shadow-primary/10 ring-1 ring-primary/10",
             contentClassName
           )}
         >
+          {!isEditing && sender === "assistant" && (
+            <div className="flex items-center gap-2 border-b border-primary/15 bg-primary/8 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-primary sm:px-5">
+              <span className="h-2 w-2 rounded-full bg-primary" />
+              Twents Bot
+            </div>
+          )}
           {isEditing ? (
             <div className="p-3">
               <textarea
@@ -259,7 +265,7 @@ export function Message({
                 "flex justify-start border-t px-3 py-1.5",
                 sender === "user"
                   ? "border-primary-foreground/15 bg-primary/5"
-                  : "border-border/55 bg-muted/35"
+                  : "border-primary/15 bg-primary/5"
               )}
             >
               <div className="flex items-center gap-1">

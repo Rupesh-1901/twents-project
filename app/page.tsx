@@ -34,10 +34,222 @@ type GenerateStreamEvent =
 type GenerationStage = "idle" | "thinking" | "searching" | "responding";
 
 let messageIdSequence = 0;
+const JOULES_PER_WATT_HOUR = 3600;
+const LED_BULB_WATTS = 10;
+const MINUTES_PER_WATT_HOUR_FOR_10W_LED = 6;
 
 function createMessageId(prefix: "user" | "assistant") {
   messageIdSequence += 1;
   return `${prefix}-${Date.now()}-${messageIdSequence}`;
+}
+
+function escapePdfText(text: string) {
+  return text
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[^\x09\x0a\x0d\x20-\x7e]/g, "?")
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)");
+}
+
+function wrapText(text: string, maxChars: number) {
+  const lines: string[] = [];
+
+  text.split(/\r?\n/).forEach((paragraph) => {
+    const words = paragraph.split(/\s+/).filter(Boolean);
+    let line = "";
+
+    if (words.length === 0) {
+      lines.push("");
+      return;
+    }
+
+    words.forEach((word) => {
+      const next = line ? `${line} ${word}` : word;
+      if (next.length <= maxChars) {
+        line = next;
+        return;
+      }
+
+      if (line) lines.push(line);
+
+      if (word.length <= maxChars) {
+        line = word;
+        return;
+      }
+
+      for (let index = 0; index < word.length; index += maxChars) {
+        lines.push(word.slice(index, index + maxChars));
+      }
+      line = "";
+    });
+
+    if (line) lines.push(line);
+  });
+
+  return lines;
+}
+
+function round(value: number, decimals: number) {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
+function asFiniteNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function formatLedDuration(minutes: number) {
+  if (minutes < 1) {
+    return `${Math.max(1, Math.round(minutes * 60))} seconds`;
+  }
+
+  if (minutes < 60) {
+    const roundedMinutes = round(minutes, minutes < 10 ? 1 : 0);
+    return `${roundedMinutes} minute${roundedMinutes === 1 ? "" : "s"}`;
+  }
+
+  const hours = round(minutes / 60, 1);
+  return `${hours} hour${hours === 1 ? "" : "s"}`;
+}
+
+function asRecord(value: unknown) {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getMessageResponseEnergyJoules(message: MessageData) {
+  if (message.sender !== "assistant") return 0;
+
+  const metadata = message.metadata ?? {};
+  const responseEnergy = asRecord(metadata.responseEnergy);
+  const energy = asRecord(metadata.energy);
+
+  return asFiniteNumber(responseEnergy?.joules ?? energy?.joules);
+}
+
+function calculateConversationEnergy(
+  messages: MessageData[],
+  currentResponseEnergy: Record<string, unknown>
+) {
+  const previousJoules = messages.reduce(
+    (total, message) => total + getMessageResponseEnergyJoules(message),
+    0
+  );
+  const joules = previousJoules + asFiniteNumber(currentResponseEnergy.joules);
+  const wattHours = joules / JOULES_PER_WATT_HOUR;
+  const ledBulbMinutes = wattHours * MINUTES_PER_WATT_HOUR_FOR_10W_LED;
+  const ledDuration = formatLedDuration(ledBulbMinutes);
+
+  return {
+    joules: round(joules, 2),
+    wattHours: round(wattHours, 4),
+    ledBulbMinutes: round(ledBulbMinutes, 2),
+    analogy: `This conversation has used enough energy so far to power a ${LED_BULB_WATTS}W household smart LED lightbulb for ${ledDuration}.`,
+  };
+}
+
+function buildChatPdf(messages: MessageData[]) {
+  const pageWidth = 595;
+  const pageHeight = 842;
+  const margin = 48;
+  const lineHeight = 15;
+  const maxChars = 74;
+  const pages: string[][] = [[]];
+  let y = pageHeight - margin;
+
+  const addLine = (line: string) => {
+    if (y < margin) {
+      pages.push([]);
+      y = pageHeight - margin;
+    }
+
+    pages[pages.length - 1].push(line);
+    y -= lineHeight;
+  };
+
+  addLine("Twents Dialect Chat");
+  addLine(`Downloaded: ${new Date().toLocaleString()}`);
+  addLine("");
+
+  messages.forEach((message, index) => {
+    const label = message.sender === "user" ? "You" : "Twents Bot";
+    addLine(`${label}:`);
+    wrapText(message.content || "(empty message)", maxChars).forEach(addLine);
+    if (index < messages.length - 1) addLine("");
+  });
+
+  const objects: string[] = [];
+  const addObject = (body: string) => {
+    objects.push(body);
+    return objects.length;
+  };
+
+  const fontId = addObject("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+  const pageIds: number[] = [];
+  const contentIds: number[] = [];
+
+  pages.forEach((lines) => {
+    const cursorY = pageHeight - margin;
+    const stream = [
+      "BT",
+      "/F1 11 Tf",
+      `${margin} ${cursorY} Td`,
+      `${lineHeight} TL`,
+      ...lines.map((line, index) => {
+        const text = `(${escapePdfText(line)})`;
+        if (index === 0) return `${text} Tj`;
+        return `T* ${text} Tj`;
+      }),
+      "ET",
+    ].join("\n");
+
+    const contentId = addObject(
+      `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`
+    );
+    contentIds.push(contentId);
+    pageIds.push(0);
+  });
+
+  const pagesId = objects.length + pages.length + 1;
+
+  contentIds.forEach((contentId, index) => {
+    const pageId = addObject(
+      `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`
+    );
+    pageIds[index] = pageId;
+  });
+
+  addObject(
+    `<< /Type /Pages /Kids [${pageIds
+      .map((id) => `${id} 0 R`)
+      .join(" ")}] /Count ${pageIds.length} >>`
+  );
+  const catalogId = addObject(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
+
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+
+  objects.forEach((body, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${body}\nendobj\n`;
+  });
+
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += "0000000000 65535 f \n";
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${
+    objects.length + 1
+  } /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+
+  return new Blob([pdf], { type: "application/pdf" });
 }
 
 // Example sources for citations
@@ -109,7 +321,7 @@ export default function ChatExample() {
   const [isLoading, setIsLoading] = useState(false);
   const [generationStage, setGenerationStage] =
     useState<GenerationStage>("idle");
-  const [selectedModel] = useState("gpt-4");
+  const [selectedModel] = useState("");
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const generationAbortRef = useRef<AbortController | null>(null);
 
@@ -190,24 +402,31 @@ export default function ChatExample() {
 
         if (event.type === "done") {
           setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === assistantMessageId
-                ? {
-                    ...msg,
-                    content: msg.content || "(no response)",
-                    metadata: {
-                      model: event.model ?? selectedModel,
-                      responseTime: Number(
-                        ((Date.now() - start) / 1000).toFixed(2)
-                      ),
-                      tokens: event.tokens ?? {},
-                      energy: event.energy ?? {},
-                      explanation: event.explanation ?? "",
-                      resources: event.resources ?? [],
-                    },
-                  }
-                : msg
-            )
+            prev.map((msg) => {
+              if (msg.id !== assistantMessageId) return msg;
+
+              const responseEnergy = event.energy ?? {};
+              const conversationEnergy = calculateConversationEnergy(
+                prev.filter((item) => item.id !== assistantMessageId),
+                responseEnergy
+              );
+
+              return {
+                ...msg,
+                content: msg.content || "(no response)",
+                metadata: {
+                  model: event.model ?? selectedModel,
+                  responseTime: Number(
+                    ((Date.now() - start) / 1000).toFixed(2)
+                  ),
+                  tokens: event.tokens ?? {},
+                  responseEnergy,
+                  energy: conversationEnergy,
+                  explanation: event.explanation ?? "",
+                  resources: event.resources ?? [],
+                },
+              };
+            })
           );
           return;
         }
@@ -312,6 +531,22 @@ export default function ChatExample() {
 
   const handleDeleteMessage = (id: string) => {
     setMessages((prev) => prev.filter((msg) => msg.id !== id));
+  };
+
+  const handleDownloadChat = () => {
+    if (messages.length === 0) return;
+
+    const blob = buildChatPdf(messages);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const date = new Date().toISOString().slice(0, 10);
+
+    link.href = url;
+    link.download = `twents-chat-${date}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   };
 
   const handleRegenerateMessage = (id: string) => {
@@ -437,7 +672,9 @@ I've thought through this from a different angle and can provide additional insi
         <ChatFooter
           onSendMessage={handleSendMessage}
           onStopGeneration={handleStopGeneration}
+          onDownloadChat={handleDownloadChat}
           isLoading={isLoading}
+          messages={messages}
         />
       </main>
     </div>
