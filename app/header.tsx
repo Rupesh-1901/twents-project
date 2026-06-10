@@ -68,39 +68,41 @@ export function ChatHeader() {
                   and creating.
                 </p>
                 <p className="text-muted-foreground">
-                  This prototype is currently under construction by  
-                  {" "}
+                  This prototype is currently under construction by{" "}
                   <a
                     href="https://www.linkedin.com/in/rupesh-mishra-5b2b701b1/"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-medium text-primary hover:underline"
                   >
-                     Rupesh
-                  </a>, 
-                  masters student at the
-                  University of Twente. Set up on a shoestring, it draws on data
-                  already present in the Mistral model from Twents text
-                  available on the internet.
-                </p>
-                <p className="text-muted-foreground">
+                    Rupesh
+                  </a>
+                  , Masters student at the University of Twente. Set up on a
+                  shoestring, it draws on data already present in the Mistral
+                  model from Twents text available on the internet.{" "}
                   Programmed to communicate solely in Twents, it allows you to
                   experience the limitations and possibilities of such a system
                   today. You may converse with the machine but it is unable to
                   learn from you or be changed by interacting with you.
-                </p>
-                <p className="text-muted-foreground">
                   And as one Tukker remarked, &quot;It&apos;s like an
                   Amsterdammer who&apos;s thinking he knows Twents...&quot;
                 </p>
                 <p className="text-muted-foreground">
+                  As part of a wider body of artwork, the project is intended to
+                  tap into contemporary debate about belonging, social contact
+                  and agency. We also hope that it will contribute to a
+                  conversation about minority languages in the context of AI,
+                  and catalyse larger-scale tech projects with languages like
+                  Twents.
+                </p>
+                <p className="text-muted-foreground">
                   Thanks to all those who have contributed, including: Martien
-                  Jalink, Jamila Blokzijl, Conny, Gerry, Frits, Martin,
-                  Martine...
+                  Jalink, Jamila Blokzijl, Frank Léoné, Conny, Gerry, Frits,
+                  Martin, Martine...
                 </p>
                 <p className="space-y-1 text-muted-foreground md:col-span-2">
                   <span className="block font-medium text-foreground">
-                    More information + contact:
+                    More information:
                   </span>
                   <a
                     href="https://linktr.ee/clare.poolman"
@@ -118,6 +120,17 @@ export function ChatHeader() {
                   >
                     https://drawingcentre.nl/residenties/
                   </a>
+                </p>
+                <p className="text-muted-foreground md:col-span-2">
+                  For feedback about the machine&apos;s Twents, ideas, or
+                  collaborations, please write{" "}
+                  <a
+                    href="mailto:clarempoolman@gmail.com"
+                    className="font-medium text-primary hover:underline"
+                  >
+                    here
+                  </a>
+                  .
                 </p>
               </div>
             </PopoverContent>
