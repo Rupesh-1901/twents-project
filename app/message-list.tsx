@@ -62,10 +62,30 @@ function MessageInfoPanel({ message }: { message: MessageData }) {
   const energy = asRecord(metadata.energy);
   const isHuman = message.sender === "user";
 
+  const MODEL_INFO: Record<string, React.ReactNode> = {
+    "mistral-large-latest": (
+      <>
+        Mistral is a French artificial intelligence company that offers open source models but does not disclose the datasets used to train them. Data is hosted in the European Union by default. As of Spring 2026, Mistral was valued at over $14 billion, and owned by its three French co-founders and investors such as Andreessen Horowitz, ASML, Bpifrance, DST Global, General Catalyst, Index Ventures, Lightspeed, and NVIDIA.{" "}
+        <a
+          href="https://en.wikipedia.org/wiki/Mistral_AI"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-foreground transition-colors"
+        >
+          Link
+        </a>
+      </>
+    ),
+  };
+
+  const modelValue = isHuman ? "homosapien" : String(metadata.model ?? "");
+  const modelInfo = MODEL_INFO[modelValue];
+
   const rows = [
     {
       label: "Model",
-      value: isHuman ? "homosapien" : metadata.model,
+      value: modelValue,
+      info: modelInfo,
     },
     {
       label: "Response Time",
@@ -74,20 +94,21 @@ function MessageInfoPanel({ message }: { message: MessageData }) {
           ? `${String(metadata.responseTime)}s`
           : "unknown"
         : metadata.responseTime
-        ? `${String(metadata.responseTime)}s`
-        : "unknown",
+          ? `${String(metadata.responseTime)}s`
+          : "unknown",
     },
     {
       label: "Tokens",
       value: isHuman ? "unknown" : metadata.tokens,
+      info: "A token is the fundamental building block of text or data processed by a large language model (e.g. single words, parts of words, spaces, punctuation, numbers, special characters...)",
     },
     {
       label: "Energy consumed so far",
       value: isHuman
         ? "unknown"
         : energy
-        ? `${String(energy.wattHours ?? "unknown")} Wh`
-        : "unknown",
+          ? `${String(energy.wattHours ?? "unknown")} Wh`
+          : "unknown",
     },
   ];
 
@@ -101,8 +122,24 @@ function MessageInfoPanel({ message }: { message: MessageData }) {
         {rows.map((row) => (
           <div key={row.label} className="grid grid-cols-[5.5rem_1fr] gap-2">
             <div className="text-muted-foreground">{row.label}:</div>
-            <div className="min-w-0 break-words font-medium">
+            <div className="min-w-0 break-words font-medium flex items-center gap-1">
               <MetadataValue value={row.value} />
+              {"info" in row && row.info && (
+                <span className="relative group inline-flex items-center">
+                  <span
+                    className="cursor-default select-none text-muted-foreground opacity-70 hover:opacity-100 transition-opacity"
+                    aria-label="Model information"
+                  >
+                    ⓘ
+                  </span>
+                  <span
+                    className={`absolute bottom-full z-50 mb-2 w-72 rounded-md border border-border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 ${isHuman ? "right-0" : "left-0"}`}
+                    role="tooltip"
+                  >
+                    {row.info}
+                  </span>
+                </span>
+              )}
             </div>
           </div>
         ))}
@@ -129,7 +166,7 @@ function MessageInfoPanel({ message }: { message: MessageData }) {
         </div>
       )}
 
-      {!isHuman &&
+      {/* {!isHuman &&
         typeof metadata.explanation === "string" &&
         metadata.explanation && (
           <div className="mt-3">
@@ -138,7 +175,7 @@ function MessageInfoPanel({ message }: { message: MessageData }) {
               {metadata.explanation}
             </div>
           </div>
-        )}
+        )} */}
 
       {!isHuman &&
         Array.isArray(metadata.resources) &&
@@ -293,72 +330,72 @@ export function MessageList({
             const actionButtons =
               message.sender === "assistant"
                 ? [
-                    {
-                      id: "speak",
-                      icon:
-                        speechLoading === message.id ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <Volume2
-                            size={14}
-                            className={
-                              speaking === message.id ? "text-primary" : ""
-                            }
-                          />
-                        ),
-                      onClick: () => handleSpeak(message.id, message.content),
-                      title:
-                        speaking === message.id
-                          ? "Stop reading response"
-                          : "Read response aloud",
-                      position: "inside" as const,
-                    },
-                    {
-                      id: "copy",
-                      icon: (
-                        <Copy
+                  {
+                    id: "speak",
+                    icon:
+                      speechLoading === message.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Volume2
                           size={14}
                           className={
-                            copying === message.id ? "text-primary" : ""
+                            speaking === message.id ? "text-primary" : ""
                           }
                         />
                       ),
-                      onClick: () => handleCopy(message.id, message.content),
-                      title: "Copy message",
-                      position: "inside" as const,
-                    },
-                    {
-                      id: "regenerate",
-                      icon: <RefreshCw size={14} />,
-                      onClick: () => onRegenerateMessage(message.id),
-                      title: "Regenerate response",
-                      position: "inside" as const,
-                    },
-                  ]
+                    onClick: () => handleSpeak(message.id, message.content),
+                    title:
+                      speaking === message.id
+                        ? "Stop reading response"
+                        : "Read response aloud",
+                    position: "inside" as const,
+                  },
+                  {
+                    id: "copy",
+                    icon: (
+                      <Copy
+                        size={14}
+                        className={
+                          copying === message.id ? "text-primary" : ""
+                        }
+                      />
+                    ),
+                    onClick: () => handleCopy(message.id, message.content),
+                    title: "Copy message",
+                    position: "inside" as const,
+                  },
+                  {
+                    id: "regenerate",
+                    icon: <RefreshCw size={14} />,
+                    onClick: () => onRegenerateMessage(message.id),
+                    title: "Regenerate response",
+                    position: "inside" as const,
+                  },
+                ]
                 : [
-                    {
-                      id: "copy",
-                      icon: (
-                        <Copy
-                          size={16}
-                          className={
-                            copying === message.id ? "text-primary" : ""
-                          }
-                        />
-                      ),
-                      onClick: () => handleCopy(message.id, message.content),
-                      title: "Copy message",
-                      position: "outside" as const,
-                    },
-                    {
-                      id: "delete",
-                      icon: <Trash2 size={16} />,
-                      onClick: () => onDeleteMessage(message.id),
-                      title: "Delete message",
-                      position: "outside" as const,
-                      className: "hover:text-destructive",
-                    },
-                  ];
+                  {
+                    id: "copy",
+                    icon: (
+                      <Copy
+                        size={16}
+                        className={
+                          copying === message.id ? "text-primary" : ""
+                        }
+                      />
+                    ),
+                    onClick: () => handleCopy(message.id, message.content),
+                    title: "Copy message",
+                    position: "outside" as const,
+                  },
+                  {
+                    id: "delete",
+                    icon: <Trash2 size={16} />,
+                    onClick: () => onDeleteMessage(message.id),
+                    title: "Delete message",
+                    position: "outside" as const,
+                    className: "hover:text-destructive",
+                  },
+                ];
 
             return (
               <div

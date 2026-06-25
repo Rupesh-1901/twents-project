@@ -172,7 +172,7 @@ function buildChatPdf(messages: MessageData[]) {
     y -= lineHeight;
   };
 
-  addLine("Twents Dialect Chat");
+  addLine("Twents Conversation Machine");
   addLine(`Downloaded: ${new Date().toLocaleString()}`);
   addLine("");
 

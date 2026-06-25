@@ -18,9 +18,9 @@ export function ChatHeader() {
             <h1 className="truncate text-base font-semibold tracking-tight sm:text-lg">
               Twents Conversation Machine
             </h1>
-            <p className="truncate text-xs font-medium text-muted-foreground">
+            {/* <p className="truncate text-xs font-medium text-muted-foreground">
               How well do machines speak your language?
-            </p>
+            </p> */}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -78,7 +78,7 @@ export function ChatHeader() {
                     Rupesh
                   </a>
                   , Masters student at the University of Twente. Set up on a
-                  shoestring, it draws on data already present in the Mistral
+                  shoestring, it draws on data already present in the Mistral's AI
                   model from Twents text available on the internet.{" "}
                   Programmed to communicate solely in Twents, it allows you to
                   experience the limitations and possibilities of such a system
