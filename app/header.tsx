@@ -78,7 +78,7 @@ export function ChatHeader() {
                     Rupesh
                   </a>
                   , Masters student at the University of Twente. Set up on a
-                  shoestring, it draws on data already present in the Mistral's AI
+                  shoestring, it draws on data already present in the Mistral&apos;s AI
                   model from Twents text available on the internet.{" "}
                   Programmed to communicate solely in Twents, it allows you to
                   experience the limitations and possibilities of such a system
