@@ -3,7 +3,7 @@ import {
   GenerationStatus,
 } from "@/components/generation-status";
 import { Message, PatternHandler } from "@/components/message";
-import { Copy, Loader2, RefreshCw, Trash2, Volume2 } from "lucide-react";
+import { Copy, Loader2, Volume2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -125,18 +125,18 @@ function MessageInfoPanel({ message }: { message: MessageData }) {
             <div className="min-w-0 break-words font-medium flex items-center gap-1">
               <MetadataValue value={row.value} />
               {"info" in row && row.info && (
-                <span className="relative group inline-flex items-center">
+                <span className="relative inline-flex items-center">
                   <span
-                    className="cursor-default select-none text-muted-foreground opacity-70 hover:opacity-100 transition-opacity"
+                    className="group relative cursor-default select-none text-muted-foreground opacity-70 hover:opacity-100 transition-opacity"
                     aria-label="Model information"
                   >
                     ⓘ
-                  </span>
-                  <span
-                    className={`absolute bottom-full z-50 mb-2 w-72 rounded-md border border-border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 ${isHuman ? "right-0" : "left-0"}`}
-                    role="tooltip"
-                  >
-                    {row.info}
+                    <span
+                      className={`absolute bottom-full z-50 mb-2 w-72 rounded-md border border-border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 ${isHuman ? "right-0" : "left-0"}`}
+                      role="tooltip"
+                    >
+                      {row.info}
+                    </span>
                   </span>
                 </span>
               )}
@@ -201,8 +201,6 @@ export function MessageList({
   generationStage,
   patternHandlers,
   onEditMessage,
-  onDeleteMessage,
-  onRegenerateMessage,
 }: MessageListProps) {
   const [copying, setCopying] = useState<string | null>(null);
   const [speaking, setSpeaking] = useState<string | null>(null);
@@ -364,13 +362,13 @@ export function MessageList({
                     title: "Copy message",
                     position: "inside" as const,
                   },
-                  {
-                    id: "regenerate",
-                    icon: <RefreshCw size={14} />,
-                    onClick: () => onRegenerateMessage(message.id),
-                    title: "Regenerate response",
-                    position: "inside" as const,
-                  },
+                  // {
+                  //   id: "regenerate",
+                  //   icon: <RefreshCw size={14} />,
+                  //   onClick: () => onRegenerateMessage(message.id),
+                  //   title: "Regenerate response",
+                  //   position: "inside" as const,
+                  // },
                 ]
                 : [
                   {
@@ -387,14 +385,14 @@ export function MessageList({
                     title: "Copy message",
                     position: "outside" as const,
                   },
-                  {
-                    id: "delete",
-                    icon: <Trash2 size={16} />,
-                    onClick: () => onDeleteMessage(message.id),
-                    title: "Delete message",
-                    position: "outside" as const,
-                    className: "hover:text-destructive",
-                  },
+                  // {
+                  //   id: "delete",
+                  //   icon: <Trash2 size={16} />,
+                  //   onClick: () => onDeleteMessage(message.id),
+                  //   title: "Delete message",
+                  //   position: "outside" as const,
+                  //   className: "hover:text-destructive",
+                  // },
                 ];
 
             return (
@@ -416,7 +414,7 @@ export function MessageList({
                   content={message.content}
                   sender={message.sender}
                   actionButtons={actionButtons}
-                  editable={message.sender === "user"}
+                  // editable={message.sender === "user"}
                   onEdit={(content) => onEditMessage(message.id, content)}
                   patternHandlers={
                     message.sender === "assistant"
